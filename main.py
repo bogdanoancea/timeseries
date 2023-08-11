@@ -16,6 +16,7 @@ from math import sqrt
 import tensorflow as tf
 import statistics as st
 import gc
+
 # split a univariate sequence into samples
 def data_to_supervised(data, n_lags):
     X, y = list(), list()
@@ -167,7 +168,7 @@ def experiment(type, df):
                             error_scores.append(rmse)
                         avg_predictions = avg_predictions / reps
                         df = pd.DataFrame(avg_predictions)
-                        df.to_csv('predictions_simple_stateless_' + str(l) + '_lags_'+ str(d) + "_drop_" + str(n) + "_neurons_" + str(e) + "_epochs_" + str(v) + "_vals" +'.csv', index=False, header=False)
+                        df.to_csv('predictions_'+ type + '_' + str(l) + '_lags_'+ str(d) + "_drop_" + str(n) + "_neurons_" + str(e) + "_epochs_" + str(v) + "_vals" +'.csv', index=False, header=False)
                         err = pd.DataFrame(error_scores)
                         err.to_csv('rmse_' + str(l) + '_lags_'+ str(d) + "_drop_" + str(n) + "_neurons_" + str(e) + "_epochs_" + str(v) + "_vals" +'.csv', index=False, header=False)
                         print('Avg. Test RMSE: %.3f' % (st.mean(error_scores) ))
