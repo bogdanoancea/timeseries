@@ -15,7 +15,7 @@ import pickle
 from math import sqrt
 import tensorflow as tf
 import statistics as st
-
+import gc
 # split a univariate sequence into samples
 def data_to_supervised(data, n_lags):
     X, y = list(), list()
@@ -121,6 +121,7 @@ def buildLSTModel2(type, dropout, n_steps_in, n_features, n_steps_out):
 
 def experiment(type, df):
     #params
+
     lags = [2, 3, 4, 5, 6, 7, 8, 9]
     drop = [0.2,0.4,0.6,0.8]
     neurons = [50, 100, 150, 200, 250, 300, 350]
@@ -178,7 +179,8 @@ def experiment(type, df):
                             e_min = e
                             v_min = v
 
-        print('Minimum Test RMSE: %.3f %d %d %d %d' % (minerr, n_min, d_min, e_min,v_min))
+    print('Minimum Test RMSE: %.3f %d %d %d %d' % (minerr, n_min, d_min, e_min,v_min))
+    gc.collect()
 
 
 
