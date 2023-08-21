@@ -24,10 +24,10 @@ def data_to_supervised(data, n_lags):
         # find the end of this pattern
         end_ix = i + n_lags
         # check if we are beyond the sequence
-        if end_ix > len(data):
+        if end_ix >= len(data):
             break
         # gather input and output parts of the pattern
-        xs, ys = data[i:end_ix], data[end_ix - 1:end_ix]
+        xs, ys = data[i:end_ix], data[end_ix]
         X.append(xs)
         y.append(ys)
     return np.array(X), np.array(y)
@@ -47,25 +47,25 @@ def data_to_supervised_nsteps_out(data, n_lags, n_out):
     return np.array(X), np.array(y)
 
 
-def buildLSTMmodel(type, n_neurons, dropout, n_lags, n_seq, n_features) :
+def buildLSTMmodel(type_, n_neurons, dropout, n_lags, n_seq, n_features) :
     model = None
-    if type == 'SimpleStateless' :
+    if type_ == 'SimpleStateless' :
         model = Sequential()
         model.add(LSTM(n_neurons, activation='relu', input_shape=(n_lags, n_features), recurrent_dropout=dropout))
-    if type == 'StackedStateless':
+    if type_ == 'StackedStateless':
         model = Sequential()
         model.add(LSTM(n_neurons, activation='relu', return_sequences=True, input_shape=(n_lags, n_features), recurrent_dropout=dropout))
         model.add(LSTM(n_neurons, activation='relu', recurrent_dropout=dropout))
-    if type == 'Bidirectional':
+    if type_ == 'Bidirectional':
         model = Sequential()
         model.add(Bidirectional(LSTM(n_neurons, activation='relu', recurrent_dropout=dropout), input_shape=(n_lags, n_features)))
-    if type == 'CNN-LSTM':
+    if type_ == 'CNN-LSTM':
         model = Sequential()
         model.add(TimeDistributed(Conv1D(filters=64, kernel_size=1, activation='relu'),input_shape=(None, n_lags, n_features)))
         model.add(TimeDistributed(MaxPooling1D(pool_size=2)))
         model.add(TimeDistributed(Flatten()))
         model.add(LSTM(n_neurons, activation='relu', recurrent_dropout=dropout))
-    if type == 'ConvLSTM':
+    if type_ == 'ConvLSTM':
         model = Sequential()
         model.add(
             ConvLSTM2D(filters=64, kernel_size=(1, 2), activation='relu', recurrent_dropout=dropout,
@@ -120,17 +120,17 @@ def buildLSTModel2(type, dropout, n_steps_in, n_features, n_steps_out):
 # 	inverted = scaler.inverse_transform(array)
 # 	return inverted[0, -1]
 
-def experiment(type, df):
+def experiment(type_, df_):
     #params
 
-    lags = [2, 3, 4, 5, 6, 7, 8, 9]
-    drop = [0.2,0.4,0.6,0.8]
-    neurons = [50, 100, 150, 200, 250, 300, 350]
+    lags = [2,3,4,5,6,7,8,9]
+    drop = [0.2, 0.3, 0.4]
+    neurons = [10, 50, 100, 150]
     reps = 30
-    epchs = [500, 1000, 1500, 2000]
+    epchs = [100, 500, 1000, 1500]
     validation = [0.2, 0.4, 0.6]
     # define input sequence
-    raw_seq = df.iloc[range(len(df.index)), 1]
+    raw_seq = df_.iloc[range(len(df_.index)), 1]
     raw_seq = raw_seq.to_numpy()
     train = raw_seq[0:-12]
     test = raw_seq[-12:]
@@ -140,6 +140,7 @@ def experiment(type, df):
     d_min = None
     e_min = None
     v_min = None
+    l_min = None
     for l in lags:
         print("Lag:", l)
         X_train, y_train = data_to_supervised(train, l)
@@ -147,40 +148,41 @@ def experiment(type, df):
         X_train = X_train.reshape((X_train.shape[0], X_train.shape[1], features))
         X_test = X_test.reshape((X_test.shape[0], X_test.shape[1], features))
         for n in neurons:
-            print("Neurons:", n)
+            #print("Neurons:", n)
             for d in drop:
-                print("drop:", d)
+                #print("drop:", d)
                 for e in epchs:
-                    print("Epochs:", e)
+                    #print("Epochs:", e)
                     for v in validation:
-                        print("Validation set:", v)
+                        #print("Validation set:", v)
                         error_scores = list()
                         avg_predictions = np.full(shape=(len(y_test),1), fill_value=0.0)
-                        for r in tf.range(reps):
-                            model = buildLSTMmodel(type, n_neurons=n, dropout=d, n_lags=l, n_seq=None, n_features=features)
-                            history = model.fit(X_train, y_train, epochs=e, verbose=0, validation_split=0.4)
-                            with open('history_'+ str(l) + '_lags_'+ str(d) + "_drop_" + str(n) + "_neurons_" + str(e) + "_epochs_" + str(v) + "_vals_" + str(r) + "_reps", "wb") as history_file:
-                                pickle.dump(history, history_file)
+                        for r in range(reps):
+                            model = buildLSTMmodel(type_, n_neurons=n, dropout=d, n_lags=l, n_seq=None, n_features=features)
+                            model.fit(X_train, y_train, epochs=e, verbose=0, validation_split=v)
+#                            with open('history_'+ type_ +'_' +str(l) + '_lags_'+ str(d) + "_drop_" + str(n) + "_neurons_" + str(e) + "_epochs_" + str(v) + "_vals_" + str(r) + "_reps", "wb") as history_file:
+#                                pickle.dump(history, history_file)
                             yhat = model.predict(X_test, verbose = 0)
                             rmse = sqrt(mean_squared_error(yhat, y_test))
                             avg_predictions = avg_predictions + np.array(yhat)
-                            print('%d) Test RMSE: %.3f' % (r + 1, rmse))
+                            #print('%d) Test RMSE: %.3f' % (r + 1, rmse))
                             error_scores.append(rmse)
                         avg_predictions = avg_predictions / reps
                         df = pd.DataFrame(avg_predictions)
-                        df.to_csv('predictions_'+ type + '_' + str(l) + '_lags_'+ str(d) + "_drop_" + str(n) + "_neurons_" + str(e) + "_epochs_" + str(v) + "_vals" +'.csv', index=False, header=False)
+                        df.to_csv('predictions_'+ type_ + '_' + str(l) + '_lags_'+ str(d) + "_drop_" + str(n) + "_neurons_" + str(e) + "_epochs_" + str(v) + "_vals" +'.csv', index=False, header=False)
                         err = pd.DataFrame(error_scores)
-                        err.to_csv('rmse_' + str(l) + '_lags_'+ str(d) + "_drop_" + str(n) + "_neurons_" + str(e) + "_epochs_" + str(v) + "_vals" +'.csv', index=False, header=False)
-                        print('Avg. Test RMSE: %.3f' % (st.mean(error_scores) ))
+                        err.to_csv('rmse_' +type_ + "_"+str(l) + '_lags_'+ str(d) + "_drop_" + str(n) + "_neurons_" + str(e) + "_epochs_" + str(v) + "_vals" +'.csv', index=False, header=False)
+                        print('Avg. Test RMSE: %.3f l = %d n = %d d = %f e = %d v = %f' % (st.mean(error_scores), l, n, d, e, v))
                         mean_err = st.mean(error_scores)
-                        if(mean_err < minerr):
+                        if mean_err < minerr:
                             minerr = mean_err
                             n_min = n
                             d_min = d
                             e_min = e
                             v_min = v
+                            l_min = l
 
-    print('Minimum Test RMSE: %.3f %d %d %d %d' % (minerr, n_min, d_min, e_min,v_min))
+    print('Minimum Test RMSE: %.3f %d %d %f %d %f' % (minerr, l_min, n_min, d_min, e_min, v_min))
     gc.collect()
 
 
@@ -189,7 +191,7 @@ if __name__ == '__main__':
     dat = pd.read_excel('seria.xlsx', header=None)
     print(dat)
     experiment('SimpleStateless', dat)
-    experiment('StackedStateless', dat)
+    #experiment('StackedStateless', dat)
 
 
    # #params
