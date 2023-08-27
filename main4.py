@@ -106,8 +106,8 @@ def buildLSTModel(type_, n_neurons, dropout, n_lags, n_features, n_out):
 # 	return inverted[0, -1]
 
 def experiment(type_, df_, lg, shf, nout):
-    drop = [0, 0.2, 0.4]
-    neurons = [50, 100, 150]
+    drop = [0]
+    neurons = [150]
     reps = 30
     epchs = [100, 500, 1000]
     # define input sequence
@@ -185,7 +185,7 @@ if __name__ == '__main__':
     lags = [4, 5, 6, 7, 8, 9]
     ii = 0
     pencoder = [0] * 6
-    lags = [4, 5, 6, 7, 8, 9]
+    lags = [6]
     jj = 0
     for l in lags:
         # psimple[i] = Process(target=experiment, args = ('Bidirectional', dat, l, False, None))
