@@ -106,16 +106,18 @@ def buildLSTModel(type_, n_neurons, dropout, n_lags, n_features, n_out):
 # 	return inverted[0, -1]
 
 def experiment(type_, df_, lg, shf, nout):
+    model = None
+    history = None
     drop = [0]
     neurons = [150]
     reps = 30
-    epchs = [100, 500, 1000]
+    epchs = [1000]
     # define input sequence
     raw_seq = df_.iloc[range(len(df_.index)), 1]
     raw_seq = raw_seq.to_numpy()
-    # scaler = MinMaxScaler(feature_range=(0,1))
-    # raw_seq =raw_seq.reshape(-1,1)
-    # raw_seq = scaler.fit_transform(raw_seq)
+    scaler = MinMaxScaler(feature_range=(0,1))
+    raw_seq =raw_seq.reshape(-1,1)
+    raw_seq = scaler.fit_transform(raw_seq)
     train = raw_seq[0:-14]
     test = raw_seq[-14:]
     features = 1
@@ -143,13 +145,13 @@ def experiment(type_, df_, lg, shf, nout):
                 avg_predictions = np.full(shape=(len(y_test), 1), fill_value=0.0)
                 for r in range(reps):
                     model = buildLSTModel(type_, n_neurons=n, dropout=d, n_lags=lg, n_features=features, n_out=nout)
-                    model.fit(X_train, y_train, epochs=e, verbose=0, shuffle=shf)
+                    history = model.fit(X_train, y_train, epochs=e, verbose=0, shuffle=shf)
                     yhat = model.predict(X_test, verbose=0)
                     if type_ == 'Encoder-Decoder':
                         yhat = yhat.reshape(yhat.shape[0], yhat.shape[1])
                     rmse = sqrt(mean_squared_error(yhat, y_test))
                     avg_predictions = avg_predictions + np.array(yhat)
-                    # print('%d) Test RMSE: %.3f' % (r + 1, rmse))
+                    print('%d) Test RMSE: %.3f' % (r + 1, rmse))
                     error_scores.append(rmse)
                 avg_predictions = avg_predictions / reps
                 df = pd.DataFrame(avg_predictions)
@@ -169,6 +171,7 @@ def experiment(type_, df_, lg, shf, nout):
                     l_min = lg
 
     print('Minimum Test RMSE: %.3f %d %d %f %d' % (minerr, l_min, n_min, d_min, e_min))
+    return model, history, train, test, X_train, X_test, y_train, y_test
 
 
 if __name__ == '__main__':
@@ -205,6 +208,7 @@ if __name__ == '__main__':
         pencoder[jj] = Process(target=experiment, args=('Encoder-Decoder', dat, l, True, 3))
         pencoder[jj].start()
         jj = jj + 1
+    l = 9
 
     # for p in psimple:
     #     p.join()
