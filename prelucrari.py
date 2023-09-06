@@ -1,6 +1,5 @@
-# import openpyxl module
 import numpy as np
-import openpyxlimport
+import openpyxl
 import xlwt as xlwt
 import pandas as pd
 from os.path import exists
@@ -11,7 +10,7 @@ epochs = [100, 500, 1000]
 dropout = [0, 0.2, 0.4]
 shuffle = [True, False]
 types = ['SimpleStateless', 'StackedStateless', 'Bidirectional']
-
+types = ['Vector', 'Encoder-Decoder']
 for rtype in types:
     wb = xlwt.Workbook()
     for l in lags:
@@ -37,8 +36,10 @@ for rtype in types:
                             sheet.write(4, col, result.index)
                         col = col + 1
     wb.save(rtype +".xlsx")
-l=9
-m,h,tr,ts,xtr,xts,ytr,yts = experiment('Bidirectional', dat, l, True, None )
+
+
+l=8
+m,h,tr,ts,xtr,xts,ytr,yts = experiment('Encoder-Decoder', dat, l, False, 3)
 
 prtr = m.predict(xtr)
 prtr = np.insert(prtr, 0, np.nan)
@@ -69,3 +70,86 @@ ax2.plot(xval, prts, color='black', label='Predicted values')
 ax2.legend()
 pyplot.show()
 pyplot.savefig('fig3.eps', format='eps')
+
+
+
+
+
+
+
+fig = pyplot.figure(figsize=(12, 6))
+fig.suptitle("Test set")
+
+ax = fig.add_subplot(221)
+xval = list(map(int, range(24, 38)))
+ax.plot(xval, ts, color='blue', label='Real values')
+prts = m.predict(xts)
+p0 = prts[0]
+p0 = np.insert(p0, 0, np.nan)
+p0 = np.insert(p0, 0, np.nan)
+p0 = np.insert(p0, 0, np.nan)
+p0 = np.insert(p0, 0, np.nan)
+p0 = np.insert(p0, 0, np.nan)
+p0 = np.insert(p0, 0, np.nan)
+p0 = np.insert(p0, 0, np.nan)
+p0 = np.insert(p0, 0, np.nan)
+p0 = np.insert(p0, 11, np.nan)
+p0 = np.insert(p0, 12, np.nan)
+p0 = np.insert(p0, 13, np.nan)
+ax.plot(xval, p0, color='red', label='Predicted values')
+
+ax2 = fig.add_subplot(222)
+xval = list(map(int, range(24, 38)))
+ax2.plot(xval, ts, color='blue', label='Real values')
+p1 = prts[1]
+p1 = np.insert(p1, 0, np.nan)
+p1 = np.insert(p1, 0, np.nan)
+p1 = np.insert(p1, 0, np.nan)
+p1 = np.insert(p1, 0, np.nan)
+p1 = np.insert(p1, 0, np.nan)
+p1 = np.insert(p1, 0, np.nan)
+p1 = np.insert(p1, 0, np.nan)
+p1 = np.insert(p1, 0, np.nan)
+p1 = np.insert(p1, 0, np.nan)
+p1 = np.insert(p1, 12, np.nan)
+p1 = np.insert(p1, 13, np.nan)
+#p1 = np.insert(p1, 13, np.nan)
+ax2.plot(xval, p1, color='red', label='Predicted values')
+
+ax3 = fig.add_subplot(223)
+xval = list(map(int, range(24, 38)))
+ax3.plot(xval, ts, color='blue', label='Real values')
+p2 = prts[2]
+p2 = np.insert(p2, 0, np.nan)
+p2 = np.insert(p2, 0, np.nan)
+p2 = np.insert(p2, 0, np.nan)
+p2 = np.insert(p2, 0, np.nan)
+p2 = np.insert(p2, 0, np.nan)
+p2 = np.insert(p2, 0, np.nan)
+p2 = np.insert(p2, 0, np.nan)
+p2 = np.insert(p2, 0, np.nan)
+p2 = np.insert(p2, 0, np.nan)
+p2 = np.insert(p2, 0, np.nan)
+p2 = np.insert(p2, 13, np.nan)
+ax3.plot(xval, p2, color='red', label='Predicted values')
+
+ax4 = fig.add_subplot(224)
+xval = list(map(int, range(24, 38)))
+ax4.plot(xval, ts, color='blue', label='Real values')
+p3 = prts[3]
+p3 = np.insert(p3, 0, np.nan)
+p3 = np.insert(p3, 0, np.nan)
+p3 = np.insert(p3, 0, np.nan)
+p3 = np.insert(p3, 0, np.nan)
+p3 = np.insert(p3, 0, np.nan)
+p3 = np.insert(p3, 0, np.nan)
+p3 = np.insert(p3, 0, np.nan)
+p3 = np.insert(p3, 0, np.nan)
+p3 = np.insert(p3, 0, np.nan)
+p3 = np.insert(p3, 0, np.nan)
+p3 = np.insert(p3, 0, np.nan)
+ax4.plot(xval, p3, color='red', label='Predicted values')
+Line, Label = ax4.get_legend_handles_labels()
+fig.legend(Line, Label, loc='upper right')
+pyplot.show()
+pyplot.savefig('fig4.eps', format='eps')
