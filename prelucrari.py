@@ -337,7 +337,7 @@ for i in range(19, 24):
     p8 = np.insert(p8, i, np.nan)
 ax9.plot(xval, p8, color='red', label='Predicted values')
 
-ax10 = fig.add_subplot(7210)
+ax10 = fig.add_subplot(7, 2, 10)
 ax10.plot(xval, tr, color='blue', label='Real values')
 p9 = prtr[9]
 p9 = np.insert(p9, 0, np.nan)
@@ -361,7 +361,7 @@ for i in range(20, 24):
     p9 = np.insert(p9, i, np.nan)
 ax10.plot(xval, p9, color='red', label='Predicted values')
 
-ax11 = fig.add_subplot(7211)
+ax11 = fig.add_subplot(7, 2, 11)
 ax11.plot(xval, tr, color='blue', label='Real values')
 p10 = prtr[10]
 p10 = np.insert(p10, 0, np.nan)
