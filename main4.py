@@ -2,26 +2,18 @@ from keras.models import Sequential
 from keras.layers import LSTM
 from keras.layers import Dense
 from keras.layers import Bidirectional
-from keras.layers import Flatten
 from keras.layers import TimeDistributed
-from keras.layers import Conv1D
-from keras.layers import MaxPooling1D
-from keras.layers import ConvLSTM2D
-from matplotlib import pyplot
 import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_squared_error
-import pickle
+from sklearn.metrics import mean_absolute_percentage_error
 from math import sqrt
-import tensorflow as tf
 import statistics as st
-import gc
 from multiprocessing import Process
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow.python.keras.layers import RepeatVector
 
 
-# split a univariate sequence into samples
 def data_to_supervised(data, n_lags, n_out):
     X, y = list(), list()
     if n_out is None:
@@ -84,40 +76,19 @@ def buildLSTModel(type_, n_neurons, dropout, n_lags, n_features, n_out):
     return model
 
 
-# # scale train and test data to [-1, 1]
-# def scale(train, test):
-# 	# fit scaler
-# 	scaler = MinMaxScaler(feature_range=(-1, 1))
-# 	scaler = scaler.fit(train)
-# 	# transform train
-# 	train = train.reshape(train.shape[0], train.shape[1])
-# 	train_scaled = scaler.transform(train)
-# 	# transform test
-# 	test = test.reshape(test.shape[0], test.shape[1])
-# 	test_scaled = scaler.transform(test)
-# 	return scaler, train_scaled, test_scaled
-#
-# # inverse scaling for a forecasted value
-# def invert_scale(scaler, X, yhat):
-# 	new_row = [x for x in X] + [yhat]
-# 	array = numpy.array(new_row)
-# 	array = array.reshape(1, len(array))
-# 	inverted = scaler.inverse_transform(array)
-# 	return inverted[0, -1]
-
 def experiment(type_, df_, lg, shf, nout):
     model = None
     history = None
-    drop = [0]
-    neurons = [150]
+    drop = [0, 0.2, 0.4]
+    neurons = [50, 100, 150]
     reps = 30
-    epchs = [1000]
-    # define input sequence
+    epchs = [100, 500, 1000]
+
     raw_seq = df_.iloc[range(len(df_.index)), 1]
     raw_seq = raw_seq.to_numpy()
-    scaler = MinMaxScaler(feature_range=(0,1))
-    raw_seq =raw_seq.reshape(-1,1)
-    raw_seq = scaler.fit_transform(raw_seq)
+    # scaler = MinMaxScaler(feature_range=(0,1))
+    # raw_seq =raw_seq.reshape(-1,1)
+    # raw_seq = scaler.fit_transform(raw_seq)
     train = raw_seq[0:-14]
     test = raw_seq[-14:]
     features = 1
@@ -142,6 +113,7 @@ def experiment(type_, df_, lg, shf, nout):
             for e in epchs:
                 # print("Epochs:", e)
                 error_scores = list()
+                #mape_scores = list()
                 avg_predictions = np.full(shape=(len(y_test), 1), fill_value=0.0)
                 for r in range(reps):
                     model = buildLSTModel(type_, n_neurons=n, dropout=d, n_lags=lg, n_features=features, n_out=nout)
@@ -150,9 +122,12 @@ def experiment(type_, df_, lg, shf, nout):
                     if type_ == 'Encoder-Decoder':
                         yhat = yhat.reshape(yhat.shape[0], yhat.shape[1])
                     rmse = sqrt(mean_squared_error(yhat, y_test))
+                    # mape = mean_absolute_percentage_error(y_test, yhat)
+                    # print("MAPE:", mape)
                     avg_predictions = avg_predictions + np.array(yhat)
                     print('%d) Test RMSE: %.3f' % (r + 1, rmse))
                     error_scores.append(rmse)
+                    # mape_scores.append(mape)
                 avg_predictions = avg_predictions / reps
                 df = pd.DataFrame(avg_predictions)
                 df.to_csv(
@@ -161,8 +136,10 @@ def experiment(type_, df_, lg, shf, nout):
                 err = pd.DataFrame(error_scores)
                 err.to_csv('rmse_' + type_ + "_" + str(lg) + '_lags_' + str(d) + "_drop_" + str(n) + "_neurons_" + str(
                     e) + "_epochs_" + str(shf) + "_shf" + '.csv', index=False, header=False)
-                print('Avg. Test RMSE: %.3f l = %d n = %d d = %f e = %d  shf = %d' % (st.mean(error_scores), lg, n, d, e, shf))
+                print('Avg. Test RMSE: %.3f l = %d n = %d d = %f e = %d  shf = %d' % (
+                st.mean(error_scores), lg, n, d, e, shf))
                 mean_err = st.mean(error_scores)
+                # mean_mape = st.mean(mape_scores)
                 if mean_err < minerr:
                     minerr = mean_err
                     n_min = n
@@ -171,85 +148,58 @@ def experiment(type_, df_, lg, shf, nout):
                     l_min = lg
 
     print('Minimum Test RMSE: %.3f %d %d %f %d' % (minerr, l_min, n_min, d_min, e_min))
+    # print("AVG mape: %.3f", mean_mape)
     return model, history, train, test, X_train, X_test, y_train, y_test
 
 
 if __name__ == '__main__':
     dat = pd.read_excel('seria.xlsx', header=None)
     print(dat)
-    # lags=[1,2,3,4,5,6,7,8,9]
-    # psimple = [0] * 9
-    # i = 0
-    # pstacked = [0] * 9
-    # j = 0
-    # pbidir = [0] * 9
-    # k = 0
-    pvector = [0] * 6
+    shf = [True, False]
+    lags = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+    for s in shf:
+        psimple = [0] * 9
+        i = 0
+        pstacked = [0] * 9
+        j = 0
+        pbidir = [0] * 9
+        k = 0
+        for l in lags:
+            psimple[i] = Process(target=experiment, args=('SimpleStateless', dat, l, s, None))
+            psimple[i].start()
+            i = i + 1
+            pstacked[j] = Process(target=experiment, args=('StackedStateless', dat, l, s, None))
+            pstacked[j].start()
+            j = j + 1
+            pbidir[k] = Process(target=experiment, args=('Bidirectional', dat, l, s, None))
+            pbidir[k].start()
+            k = k + 1
+
+        for p in psimple:
+            p.join()
+        for p in pstacked:
+            p.join()
+        for p in pbidir:
+            p.join()
+
     lags = [4, 5, 6, 7, 8, 9]
-    ii = 0
-    pencoder = [0] * 6
-    lags = [6]
-    jj = 0
-    for l in lags:
-        # psimple[i] = Process(target=experiment, args = ('Bidirectional', dat, l, False, None))
-        # psimple[i].start()
-        # i = i +1
-        # pstacked[j] = Process(target=experiment, args = ('StackedStateless', dat, l, False, None))
-        # pstacked[j].start()
-        # j = j + 1
-        # pbidir[k] = Process(target=experiment, args = ('Bidirectional', dat, l, False, None))
-        # pbidir[k].start()
-        # k = k + 1
+    for s in shf:
+        pvector = [0] * 6
+        ii = 0
+        pencoder = [0] * 6
+        jj = 0
 
-        # pvector[ii] = Process(target=experiment, args=('Vector', dat, l, True, 3))
-        # pvector[ii].start()
-        # ii = ii + 1
+        for l in lags:
+            pvector[ii] = Process(target=experiment, args=('Vector', dat, l, s, 3))
+            pvector[ii].start()
+            ii = ii + 1
 
-        pencoder[jj] = Process(target=experiment, args=('Encoder-Decoder', dat, l, True, 3))
-        pencoder[jj].start()
-        jj = jj + 1
-    l = 9
+            pencoder[jj] = Process(target=experiment, args=('Encoder-Decoder', dat, l, s, 3))
+            pencoder[jj].start()
+            jj = jj + 1
 
-    # for p in psimple:
-    #     p.join()
-    # for p in pstacked:
-    #     p.join()
-    # for p in pbidir:
-    #     p.join()
-    # for p in pvector:
-    #     p.join()
-    for p in pencoder:
-        p.join()
-# model = Sequential()
-# model.add(LSTM(50,
-#                batch_input_shape=(batch_size, tsteps, 1),
-#                return_sequences=True,
-#                stateful=True))
-# model.add(LSTM(50,
-#                return_sequences=False,
-#                stateful=True))
-# model.add(Dense(1))
-# model.compile(loss='mse', optimizer='rmsprop')
-#
-# print('Training')
-# for i in range(epochs):
-#     print('Epoch', i, '/', epochs)
-#     model.fit(cos,
-#               expected_output,
-#               batch_size=batch_size,
-#               verbose=1,
-#               nb_epoch=1,
-#               shuffle=False)
-#     model.reset_states()
-#
-# print('Predicting')
-# predicted_output = model.predict(cos, batch_size=batch_size)
-#
-# print('Plotting Results')
-# plt.subplot(2, 1, 1)
-# plt.plot(expected_output)
-# plt.title('Expected')
-# plt.subplot(2, 1, 2)
-# plt.plot(predicted_output)
-# plt.title('Predicted')
-# plt.show()
+        for p in pvector:
+            p.join()
+        for p in pencoder:
+            p.join()
+
