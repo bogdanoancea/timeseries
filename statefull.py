@@ -13,12 +13,10 @@ def data_to_supervised(data, n_lags, n_out):
     X, y = list(), list()
     if n_out is None:
         for i in range(len(data)):
-            # find the end of this pattern
             end_ix = i + n_lags
             # check if we are beyond the sequence
             if end_ix > len(data) - 1:
                 break
-            # gather input and output parts of the pattern
             xs, ys = data[i:end_ix], data[end_ix]
             X.append(xs)
             y.append(ys)
@@ -26,7 +24,6 @@ def data_to_supervised(data, n_lags, n_out):
         for i in range(len(data)):
             end_ix = i + n_lags
             out_end_ix = end_ix + n_out
-            # check if we are beyond the sequence
             if out_end_ix > len(data):
                 break
             xs, ys = data[i:end_ix], data[end_ix:out_end_ix]
@@ -34,43 +31,6 @@ def data_to_supervised(data, n_lags, n_out):
             y.append(ys)
 
     return np.array(X), np.array(y)
-
-
-# create a differenced series
-def difference(dataset, interval=1):
-    diff = list()
-    for i in range(interval, len(dataset)):
-        value = dataset[i] - dataset[i - interval]
-        diff.append(value)
-    return pd.Series(diff)
-
-
-# invert differenced value
-def inverse_difference(history, yhat, interval=1):
-    return yhat + history[-interval]
-
-
-# scale train and test data to [-1, 1]
-def scale(train, test):
-    # fit scaler
-    scaler = MinMaxScaler(feature_range=(-1, 1))
-    scaler = scaler.fit(train)
-    # transform train
-    train = train.reshape(train.shape[0], train.shape[1])
-    train_scaled = scaler.transform(train)
-    # transform test
-    test = test.reshape(test.shape[0], test.shape[1])
-    test_scaled = scaler.transform(test)
-    return scaler, train_scaled, test_scaled
-
-
-# inverse scaling for a forecasted value
-def invert_scale(scaler, X, yhat):
-    new_row = [x for x in X] + [yhat]
-    array = np.array(new_row)
-    array = array.reshape(1, len(array))
-    inverted = scaler.inverse_transform(array)
-    return inverted[0, -1]
 
 
 def buildLSTModel(type_, n_neurons, dropout, batch, n_out):
@@ -83,47 +43,43 @@ def buildLSTModel(type_, n_neurons, dropout, batch, n_out):
         model.add(Dense(1))
         model.compile(optimizer='adam', loss='mse')
 
-    # if type_ == 'StackedStateless':
-    #     model = Sequential()
-    #     model.add(LSTM(n_neurons, activation='relu', return_sequences=True, input_shape=(n_lags, n_features),
-    #                    recurrent_dropout=dropout, stateful=False))
-    #     model.add(LSTM(n_neurons, activation='relu', recurrent_dropout=dropout, stateful=False))
-    #     model.add(Dense(1))
-    # if type_ == 'Bidirectional':
-    #     model = Sequential()
-    #     model.add(Bidirectional(LSTM(n_neurons, activation='relu', recurrent_dropout=dropout, stateful=False),
-    #                             input_shape=(n_lags, n_features)))
-    #     model.add(Dense(1))
-    # if type_ == 'Vector':
-    #     model = Sequential()
-    #     model.add(LSTM(n_neurons, activation='relu', recurrent_dropout=dropout, return_sequences=True,
-    #                    input_shape=(n_lags, n_features)))
-    #     model.add(LSTM(n_neurons, recurrent_dropout=dropout, activation='relu'))
-    #     model.add(Dense(n_out))
-    # if type_ == 'Encoder-Decoder':
-    #     model = Sequential()
-    #     model.add(LSTM(n_neurons, activation='relu', recurrent_dropout=dropout, input_shape=(n_lags, n_features)))
-    #     model.add(RepeatVector(n_out))
-    #     model.add(LSTM(n_neurons, activation='relu', recurrent_dropout=dropout, return_sequences=True))
-    #     model.add(TimeDistributed(Dense(1)))
-    # if model is not None:
-    #     model.compile(optimizer='adam', loss='mse')
+    if type_ == 'StackedStateful':
+        model = Sequential()
+        model.add(LSTM(n_neurons, activation='relu', return_sequences=True, batch_input_shape=batch,
+                       recurrent_dropout=dropout, stateful=True))
+        model.add(LSTM(n_neurons, activation='relu', recurrent_dropout=dropout, stateful=True))
+        model.add(Dense(1))
+    if type_ == 'BidirectionalStateful':
+        model = Sequential()
+        model.add(Bidirectional(LSTM(n_neurons, activation='relu', recurrent_dropout=dropout, stateful=True),
+                                batch_input_shape=batch))
+        model.add(Dense(1))
+    if type_ == 'VectorStateful':
+        model = Sequential()
+        model.add(LSTM(n_neurons, activation='relu', recurrent_dropout=dropout, return_sequences=True, stateful=True,
+                       batch_input_shape=batch))
+        model.add(LSTM(n_neurons, recurrent_dropout=dropout, activation='relu', stateful=True))
+        model.add(Dense(n_out))
+    if type_ == 'Encoder-DecoderStateful':
+        model = Sequential()
+        model.add(LSTM(n_neurons, activation='relu', recurrent_dropout=dropout, batch_input_shape=batch, stateful=True))
+        model.add(RepeatVector(n_out))
+        model.add(LSTM(n_neurons, activation='relu', recurrent_dropout=dropout, return_sequences=True, stateful=True))
+        model.add(TimeDistributed(Dense(1)))
+    if model is not None:
+        model.compile(optimizer='adam', loss='mse')
     return model
 
 
-# run a repeated experiment
 def experiment(type_, df_, lg, shf, nout):
-    drop = [0]
-    neurons = [150]
+    drop = [0, 0.2, 0.4]
+    neurons = [50, 100, 150]
     reps = 30
-    epchs = [1000]
-    # define input sequence
+    epchs = [100, 500, 1000]
+
     raw_seq = df_.iloc[:, 1].values
-    # raw_seq = raw_seq.to_numpy()
-    # raw_diff = difference(raw_seq, 1)
     train = raw_seq[0:-14]
     test = raw_seq[-14:]
-    features = 1
     minerr = 1000000
     n_min = None
     d_min = None
@@ -151,13 +107,13 @@ def experiment(type_, df_, lg, shf, nout):
                 for r in range(reps):
 
                     model = buildLSTModel(type_, n_neurons=n, dropout=d,
-                                          batch=(batch_size, X_train.shape[1], X_train.shape[2]), n_out=None)
+                                          batch=(batch_size, X_train.shape[1], X_train.shape[2]), n_out=nout)
                     for i in range(e):
                         model.fit(X_train, y_train, epochs=1, batch_size=batch_size, verbose=0, shuffle=shf)
                         model.reset_states()
 
                     yhat = model.predict(X_test, batch_size=batch_size, verbose=0)
-                    print(yhat)
+                    #print(yhat)
                     rmse = sqrt(mean_squared_error(yhat, y_test))
                     avg_predictions = avg_predictions + np.array(yhat)
                     print('%d) Test RMSE: %.3f' % (r + 1, rmse))
@@ -187,7 +143,52 @@ def experiment(type_, df_, lg, shf, nout):
 if __name__ == '__main__':
     dat = pd.read_excel('seria.xlsx', header=None)
     repeats = 30
-    results = pd.DataFrame()
-    # run experiment
-    l = 3
-    experiment('SimpleStateful', dat, l, False, None)
+    dat = pd.read_excel('seria.xlsx', header=None)
+    print(dat)
+    shf = [True, False]
+    lags = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+    for s in shf:
+        psimple = [0] * 9
+        i = 0
+        pstacked = [0] * 9
+        j = 0
+        pbidir = [0] * 9
+        k = 0
+        for l in lags:
+            psimple[i] = Process(target=experiment, args=('SimpleStateful', dat, l, s, None))
+            psimple[i].start()
+            i = i + 1
+            pstacked[j] = Process(target=experiment, args=('StackedStateful', dat, l, s, None))
+            pstacked[j].start()
+            j = j + 1
+            pbidir[k] = Process(target=experiment, args=('BidirectionalStateful', dat, l, s, None))
+            pbidir[k].start()
+            k = k + 1
+
+        for p in psimple:
+            p.join()
+        for p in pstacked:
+            p.join()
+        for p in pbidir:
+            p.join()
+
+    lags = [4, 5, 6, 7, 8, 9]
+    for s in shf:
+        pvector = [0] * 6
+        ii = 0
+        pencoder = [0] * 6
+        jj = 0
+
+        for l in lags:
+            pvector[ii] = Process(target=experiment, args=('VectorStateful', dat, l, s, 3))
+            pvector[ii].start()
+            ii = ii + 1
+
+            pencoder[jj] = Process(target=experiment, args=('Encoder-DecoderStateful', dat, l, s, 3))
+            pencoder[jj].start()
+            jj = jj + 1
+
+        for p in pvector:
+            p.join()
+        for p in pencoder:
+            p.join()
